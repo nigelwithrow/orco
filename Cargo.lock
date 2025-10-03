@@ -319,6 +319,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "orco-jsgen"
+version = "0.1.0"
+dependencies = [
+ "orco",
+]
+
+[[package]]
 name = "orco-rustc"
 version = "0.1.0"
 dependencies = [
