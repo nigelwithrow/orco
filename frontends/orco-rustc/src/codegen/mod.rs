@@ -52,7 +52,7 @@ impl<'tcx, CG: oc::BodyCodegen> CodegenCtx<'tcx, CG> {
                         }
                     }
                     AK::Adt(key, variant, ..) => {
-                        let adt = self.tcx.adt_def(key);
+                        let adt = self.tcx.adt_def(*key);
                         let variant = &adt.variants()[*variant];
                         for (idx, op) in fields.iter_enumerated() {
                             let field = &variant.fields[idx];

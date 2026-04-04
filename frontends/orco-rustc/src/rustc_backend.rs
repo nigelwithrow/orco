@@ -15,7 +15,15 @@ impl rustc_codegen_ssa::traits::CodegenBackend for OrcoCodegenBackend {
         "orco codegen"
     }
 
-    fn codegen_crate(&self, tcx: TyCtxt<'_>) -> Box<dyn Any> {
+    fn target_cpu(&self, _sess: &Session) -> String {
+        "gcc".to_owned()
+    }
+
+    fn codegen_crate(
+        &self,
+        tcx: TyCtxt<'_>,
+        _crate_info: &rustc_codegen_ssa::CrateInfo,
+    ) -> Box<dyn Any> {
         tracing::info!("Name: {}", tcx.crate_name(rustc_hir::def_id::LOCAL_CRATE));
         let items = tcx.hir_crate_items(());
         let backend = orco_cgen::Backend::new();
@@ -27,21 +35,20 @@ impl rustc_codegen_ssa::traits::CodegenBackend for OrcoCodegenBackend {
 
     fn join_codegen(
         &self,
-        ongoing_codegen: Box<dyn Any>,
+        _ongoing_codegen: Box<dyn Any>,
         _sess: &Session,
         _outputs: &rustc_session::config::OutputFilenames,
     ) -> (
-        rustc_codegen_ssa::CodegenResults,
+        rustc_codegen_ssa::CompiledModules,
         rustc_data_structures::fx::FxIndexMap<
             rustc_middle::dep_graph::WorkProductId,
             rustc_middle::dep_graph::WorkProduct,
         >,
     ) {
         (
-            rustc_codegen_ssa::CodegenResults {
+            rustc_codegen_ssa::CompiledModules {
                 modules: Vec::new(),
                 allocator_module: None,
-                crate_info: *ongoing_codegen.downcast().unwrap(),
             },
             rustc_data_structures::fx::FxIndexMap::default(),
         )

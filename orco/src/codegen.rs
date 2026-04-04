@@ -49,7 +49,6 @@ pub trait BodyCodegen {
     fn call(&mut self, function: Operand, args: Vec<Operand>, destination: Place);
 
     /// Return a value from this function.
-    /// Use [`Operand::Unit`] if no return value is required.
     fn return_(&mut self, value: Operand);
 
     /// Get arbitrary control flow instructions, see [ACFCodegen]
@@ -79,7 +78,7 @@ pub trait ACFCodegen {
 }
 
 /// Interface for generating actual code.
-/// All the items defined must be declared using [DeclarationBackend] first.
+/// All the items defined must be declared using [crate::DeclarationBackend] first.
 pub trait CodegenBackend: Sync {
     /// Define a function
     fn function(&self, name: Symbol) -> impl BodyCodegen;

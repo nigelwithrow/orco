@@ -1,4 +1,3 @@
-use crate::symbols::FunctionSignature;
 use crate::{BackendContext, SymbolKind};
 use orco::codegen as oc;
 
@@ -155,7 +154,7 @@ impl<B: BackendContext> oc::BodyCodegen for Codegen<'_, B> {
         let name = format!("_{id}");
         self.ctx.intern_type(&mut ty, false, false);
 
-        if !matches!(&ty, orco::Type::Struct { fields: fields } if fields.is_empty()) {
+        if !matches!(&ty, orco::Type::Struct { fields } if fields.is_empty()) {
             self.stmt(&format!(
                 "{};",
                 crate::types::FmtType {
@@ -174,7 +173,7 @@ impl<B: BackendContext> oc::BodyCodegen for Codegen<'_, B> {
         oc::Variable(idx)
     }
 
-    fn assign(&mut self, value: oc::Operand, destination: oc::Place) {}
+    fn assign(&mut self, _value: oc::Operand, _destination: oc::Place) {}
 
     fn call(&mut self, function: oc::Operand, args: Vec<oc::Operand>, destination: oc::Place) {
         self.indent();
@@ -198,7 +197,7 @@ impl<B: BackendContext> oc::BodyCodegen for Codegen<'_, B> {
         self.body.push_str(");\n");
     }
 
-    fn return_(&mut self, value: oc::Operand) {}
+    fn return_(&mut self, _value: oc::Operand) {}
 
     fn acf(&mut self) -> &mut impl oc::ACFCodegen {
         self
@@ -206,11 +205,11 @@ impl<B: BackendContext> oc::BodyCodegen for Codegen<'_, B> {
 }
 
 impl<B: BackendContext> oc::ACFCodegen for Codegen<'_, B> {
-    fn label(&mut self, label: oc::Label) {}
+    fn label(&mut self, _label: oc::Label) {}
 
-    fn jump(&mut self, label: oc::Label) {}
+    fn jump(&mut self, _label: oc::Label) {}
 
-    fn cjump(&mut self, lhs: oc::Operand, rhs: u128, equal: bool, label: oc::Label) {}
+    fn cjump(&mut self, _lhs: oc::Operand, _rhs: u128, _equal: bool, _label: oc::Label) {}
 }
 
 impl<B: BackendContext> std::ops::Drop for Codegen<'_, B> {
