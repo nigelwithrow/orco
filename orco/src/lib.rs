@@ -12,7 +12,7 @@ pub use codegen::CodegenBackend;
 pub mod types;
 pub use types::Type;
 
-/// Attributes are a way to pass information about a function to the backend
+/// Attributes are a way to pass information about symbols to the backend
 pub mod attrs;
 
 /// Declare items before defining them.

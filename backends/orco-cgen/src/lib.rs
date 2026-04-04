@@ -28,7 +28,7 @@ pub trait BackendContext {
     /// Get the original [Backend]
     fn backend(&self) -> &Backend;
 
-    /// Returns true if generated code will be in a macro (aka token pasting is allowed)
+    /// Returns true if generated code will be in a macro (which means token pasting is allowed)
     fn macro_context(&self) -> bool;
 
     /// Get symbol name within this context. See [symname]

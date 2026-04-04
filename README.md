@@ -21,3 +21,8 @@ platform, using native libraries, transpiling to JS or LUA.
 You can watch me do this live on [![twitch](https://assets.twitch.tv/assets/favicon-16-52e571ffea063af7a7f4.png) Twitch](https://www.twitch.tv/infinitecoder01) and [![youtube](https://www.youtube.com/favicon.ico) Youtube](https://www.youtube.com/@InfiniteCoder02/)
 Currently working with rust frontend and C backend (reference backend),
 going through some of [rust by example](<https://doc.rust-lang.org/stable/rust-by-example/>) and figuring out generics.
+
+[ ] (orco): remake codegen API
+[ ] (cgen): implement dependency sorting for symbol declarations
+[ ] (orco): Constant expressions inside types (f.e. array size)
+[ ] (rustc): implement all the things
