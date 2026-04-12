@@ -16,6 +16,15 @@ pub enum SymbolKind {
     },
 }
 
+impl SymbolKind {
+    pub fn skip_generics(&self) -> &SymbolKind {
+        match self {
+            SymbolKind::Generic { symbol, .. } => symbol.skip_generics(),
+            symbol => symbol,
+        }
+    }
+}
+
 /// Formats a symbol for display in C language
 #[allow(missing_docs)]
 pub struct FmtSymbol<'a> {

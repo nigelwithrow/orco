@@ -5,13 +5,18 @@ use crate::{Symbol, Type};
 /// Implementations of codegen features
 pub mod impls;
 
-/// A variable ID. Variable is a mutable storage, either in RAM or CPU registers
+/// Variable is a mutable storage, either in RAM or CPU registers
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Variable(pub usize);
 
+/// Values are immutable results of operations. They can't be reused
+/// unless stored in temproary variables, see [`BodyCodegen::mk_tmp`]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Value(pub usize);
+
 /// A variable or symbol with projection (aka field access, dereferences, etc.)
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
-pub enum Place<Value> {
+#[derive(Debug, PartialEq, PartialOrd)]
+pub enum Place {
     /// Just variable access
     Variable(Variable),
     /// Global symbol access
@@ -22,7 +27,7 @@ pub enum Place<Value> {
     Field(Value, usize),
 }
 
-impl<V> From<Variable> for Place<V> {
+impl From<Variable> for Place {
     fn from(value: Variable) -> Self {
         Self::Variable(value)
     }
@@ -30,10 +35,8 @@ impl<V> From<Variable> for Place<V> {
 
 /// Trait for generating code within a function
 pub trait BodyCodegen {
-    /// Values are immutable results of operations.
-    type Value;
-    /// Get type of the value
-    fn type_of(&self, value: &Self::Value) -> Type;
+    /// Get type of the value. Takes in [`Value::0`] to not consume the value
+    fn type_of(&self, id: usize) -> Type;
 
     /// Declare a variable, see [Variable]
     fn declare_var(&mut self, ty: Type) -> Variable;
@@ -41,28 +44,28 @@ pub trait BodyCodegen {
     fn arg_var(&self, idx: usize) -> Variable;
 
     /// Assign a value into a place, which makes it reusable
-    fn assign(&mut self, target: Place<Self::Value>, value: Self::Value);
+    fn assign(&mut self, target: Place, value: Value);
     /// Makes a temproary variable and assigns the value to it. Utility function
-    fn mk_tmp(&mut self, value: Self::Value) -> Variable {
-        let tmp = self.declare_var(self.type_of(&value));
+    fn mk_tmp(&mut self, value: Value) -> Variable {
+        let tmp = self.declare_var(self.type_of(value.0));
         self.assign(tmp.into(), value);
         tmp
     }
 
     /// Signed integer constant
-    fn iconst(&mut self, value: i128, size: IntegerSize) -> Self::Value;
+    fn iconst(&mut self, value: i128, size: IntegerSize) -> Value;
     /// Unsigned integer constant
-    fn uconst(&mut self, value: u128, size: IntegerSize) -> Self::Value;
+    fn uconst(&mut self, value: u128, size: IntegerSize) -> Value;
     /// Float constant
-    fn fconst(&mut self, value: f64, size: u16) -> Self::Value;
+    fn fconst(&mut self, value: f64, size: u16) -> Value;
 
     /// Read value from a [Place]
-    fn read(&mut self, place: Place<Self::Value>) -> Self::Value;
+    fn read(&mut self, place: Place) -> Value;
 
     /// Return a value from the current function.
-    fn return_(&mut self, value: Option<Self::Value>);
+    fn return_(&mut self, value: Option<Value>);
     /// Get arbitrary control flow instructions, see [ACFCodegen]
-    fn acf(&mut self) -> &mut impl ACFCodegen<Self::Value> {
+    fn acf(&mut self) -> &mut impl ACFCodegen {
         Box::leak(Box::new(impls::Unsupported))
     }
 }
@@ -73,9 +76,11 @@ pub struct Label(pub usize);
 
 /// Arbitrary control flow instructions, such as jumps.
 /// Warning: Not all codegens implement arbitrary control flow
-pub trait ACFCodegen<Value> {
-    /// Puts a said label in the current position.
-    /// Note: Labels can be used before placing. Frontend decides on IDs
+pub trait ACFCodegen {
+    /// Allocates a label to be placed later
+    fn alloc_label(&mut self) -> Label;
+
+    /// Places a label in the current position.
     fn label(&mut self, label: Label);
 
     /// Jump to a label.

@@ -16,6 +16,33 @@ impl Backend {
     pub fn new() -> Backend {
         Self::default()
     }
+
+    /// Retursn a previously declared symbol
+    pub fn get_symbol(
+        &self,
+        name: orco::Symbol,
+    ) -> scc::hash_map::OccupiedEntry<'_, orco::Symbol, SymbolKind> {
+        self.symbols
+            .get_sync(&name)
+            .unwrap_or_else(|| panic!("undeclared symbol {}", name))
+    }
+
+    /// If ty is a type alias (but not a struct), inlines it.
+    /// Does not inline inner types
+    pub fn inline_type_aliases(&self, ty: orco::Type) -> orco::Type {
+        match ty {
+            orco::Type::Symbol(symbol) => {
+                let symbol = self.get_symbol(symbol);
+                match symbol.get() {
+                    SymbolKind::Type(ty) if !matches!(ty, orco::Type::Struct { .. }) => {
+                        self.inline_type_aliases(ty.clone())
+                    }
+                    _ => ty,
+                }
+            }
+            ty => ty,
+        }
+    }
 }
 
 impl BackendContext for Backend {
