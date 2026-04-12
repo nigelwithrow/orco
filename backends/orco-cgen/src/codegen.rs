@@ -84,7 +84,7 @@ impl<'a, B: BackendContext> Codegen<'a, B> {
         }
     }
 
-    fn place(&mut self, place: oc::Place) {
+    fn read(&mut self, place: oc::Place) {
         match place {
             oc::Place::Variable(var) => {
                 self.body.push_str(&self.variables[var.0].name);
