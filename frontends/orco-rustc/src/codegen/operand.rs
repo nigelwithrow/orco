@@ -1,12 +1,12 @@
 use super::{CodegenCtx, oc};
 
 impl<'tcx, CG: oc::BodyCodegen> CodegenCtx<'tcx, CG> {
-    pub(super) fn place(&self, place: rustc_middle::mir::Place<'tcx>) -> oc::Place {
-        let mut res = oc::Place::Variable(self.variables[place.local.index()]);
+    pub(super) fn place(&mut self, place: rustc_middle::mir::Place<'tcx>) -> Option<oc::Place> {
+        let mut res = oc::Place::Variable(self.variables[&place.local]?);
         for (_, proj) in place.iter_projections() {
             use rustc_middle::mir::ProjectionElem as PE;
             match proj {
-                PE::Deref => res = oc::Place::Deref(Box::new(res)),
+                PE::Deref => res = oc::Place::Deref(self.codegen.read(res)),
                 PE::Field(field, _) => res = oc::Place::Field(Box::new(res), field.index()),
                 PE::Index(_) => todo!(),
                 PE::ConstantIndex { .. } => todo!(),
@@ -16,15 +16,17 @@ impl<'tcx, CG: oc::BodyCodegen> CodegenCtx<'tcx, CG> {
                 PE::UnwrapUnsafeBinder(..) => todo!(),
             }
         }
-        res
+        Some(res)
     }
 
-    pub(super) fn op(&mut self, op: &rustc_middle::mir::Operand<'tcx>) -> oc::Operand {
+    pub(super) fn op(&mut self, op: &rustc_middle::mir::Operand<'tcx>) -> Option<oc::Value> {
         use rustc_const_eval::interpret::Scalar;
         use rustc_middle::mir::{Const, ConstValue, Operand};
-        match op {
-            Operand::Copy(place) => oc::Operand::Place(self.place(*place)),
-            Operand::Move(place) => oc::Operand::Place(self.place(*place)),
+        Some(match op {
+            Operand::Copy(place) | Operand::Move(place) => {
+                let place = self.place(*place)?;
+                self.codegen.read(place)
+            }
             Operand::Constant(value) => {
                 let (value, ty) = match value.const_ {
                     Const::Ty(..) => todo!(),
@@ -38,7 +40,7 @@ impl<'tcx, CG: oc::BodyCodegen> CodegenCtx<'tcx, CG> {
                     ConstValue::Scalar(scalar) => match scalar {
                         Scalar::Int(value) => {
                             if ty.is_floating_point() {
-                                oc::Operand::FConst(
+                                self.codegen.fconst(
                                     match value.size().bytes() {
                                         4 => f32::from_bits(value.to_u32()) as _,
                                         8 => f64::from_bits(value.to_u64()) as _,
@@ -49,7 +51,7 @@ impl<'tcx, CG: oc::BodyCodegen> CodegenCtx<'tcx, CG> {
                                     value.size().bits() as _,
                                 )
                             } else if ty.is_signed() {
-                                oc::Operand::IConst(
+                                self.codegen.iconst(
                                     value.to_int(value.size()),
                                     if ty.is_ptr_sized_integral() {
                                         orco::types::IntegerSize::Size
@@ -58,7 +60,7 @@ impl<'tcx, CG: oc::BodyCodegen> CodegenCtx<'tcx, CG> {
                                     },
                                 )
                             } else {
-                                oc::Operand::UConst(
+                                self.codegen.uconst(
                                     value.to_uint(value.size()),
                                     if ty.is_ptr_sized_integral() {
                                         orco::types::IntegerSize::Size
@@ -73,14 +75,14 @@ impl<'tcx, CG: oc::BodyCodegen> CodegenCtx<'tcx, CG> {
                     ConstValue::ZeroSized => match ty.kind() {
                         // TODO: We might need to do more
                         // TODO: Generics
-                        rustc_middle::ty::TyKind::FnDef(func, ..) => oc::Operand::Place(
+                        rustc_middle::ty::TyKind::FnDef(func, ..) => self.codegen.read(
                             oc::Place::Global(crate::names::convert_path(self.tcx, *func).into()),
                         ),
                         rustc_middle::ty::TyKind::Adt(..) => {
                             let var = self
                                 .codegen
-                                .declare_var(crate::types::convert(self.tcx, ty));
-                            oc::Operand::Place(oc::Place::Variable(var))
+                                .declare_var(crate::types::convert(self.tcx, ty)?);
+                            self.codegen.read(var.into())
                         }
                         _ => panic!("Unknown zero-sized const {op:?}"),
                     },
@@ -89,6 +91,6 @@ impl<'tcx, CG: oc::BodyCodegen> CodegenCtx<'tcx, CG> {
                 }
             }
             Operand::RuntimeChecks(..) => todo!(),
-        }
+        })
     }
 }

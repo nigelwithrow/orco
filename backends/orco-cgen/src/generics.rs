@@ -30,13 +30,13 @@ impl BackendContext for Wrapper<'_> {
         );
     }
 
-    fn define(&self, code: String) {
+    fn define(&self, _code: String) {
         todo!()
     }
 
-    fn intern_type(&self, ty: &mut orco::Type, named: bool, replace_unit: bool) {
+    fn intern_type(&self, ty: &mut orco::Type, named: bool) {
         // TODO: Interned types in generics
-        self.backend.intern_type(ty, named, replace_unit)
+        self.backend.intern_type(ty, named)
     }
 }
 
@@ -45,13 +45,15 @@ impl orco::DeclarationBackend for Wrapper<'_> {
         &self,
         name: orco::Symbol,
         mut params: Vec<(Option<String>, orco::Type)>,
-        mut return_type: orco::Type,
+        mut return_type: Option<orco::Type>,
         attrs: orco::attrs::FunctionAttributes,
     ) {
         for (_, ty) in &mut params {
-            self.intern_type(ty, false, false);
+            self.intern_type(ty, false);
         }
-        self.intern_type(&mut return_type, false, true);
+        if let Some(rt) = &mut return_type {
+            self.intern_type(rt, false);
+        }
         self.symbol(
             name,
             SymbolKind::Function(crate::symbols::FunctionSignature {
@@ -63,7 +65,7 @@ impl orco::DeclarationBackend for Wrapper<'_> {
     }
 
     fn type_(&self, name: orco::Symbol, mut ty: orco::Type) {
-        self.backend.intern_type(&mut ty, true, false);
+        self.backend.intern_type(&mut ty, true);
         self.symbol(name, SymbolKind::Type(ty));
     }
 

@@ -23,7 +23,7 @@ pub trait DeclarationBackend: Sync {
         &self,
         name: Symbol,
         params: Vec<(Option<String>, Type)>,
-        return_type: Type,
+        return_type: Option<Type>,
         attrs: attrs::FunctionAttributes,
     );
 

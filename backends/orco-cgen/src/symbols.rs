@@ -17,6 +17,7 @@ pub enum SymbolKind {
 }
 
 impl SymbolKind {
+    /// Skip generics and return the underlying symbol. Similar to rustc's skip_binders
     pub fn skip_generics(&self) -> &SymbolKind {
         match self {
             SymbolKind::Generic { symbol, .. } => symbol.skip_generics(),
@@ -110,7 +111,7 @@ pub struct FunctionSignature {
     /// Parameter types with optional names
     pub params: Vec<(Option<String>, orco::Type)>,
     /// Return type
-    pub return_type: orco::Type,
+    pub return_type: Option<orco::Type>,
 }
 
 impl FunctionSignature {
@@ -118,16 +119,20 @@ impl FunctionSignature {
     pub fn ptr_type(&self) -> orco::Type {
         orco::Type::FnPtr {
             params: self.params.iter().map(|(_, ty)| ty.clone()).collect(),
-            return_type: Box::new(self.return_type.clone()),
+            return_type: self.return_type.clone().map(Box::new),
         }
     }
 }
 
 /// Formats function signature
 pub struct FmtFunction<'a> {
+    /// Is token pasting allowed? (see [`crate::BackendContext::macro_context`])
     pub macro_context: bool,
+    /// Function name
     pub name: &'a str,
+    /// Function signature
     pub signature: &'a FunctionSignature,
+    /// Wether to name all args (assign placeholder names)?
     pub name_all_args: bool,
 }
 
@@ -164,7 +169,7 @@ impl std::fmt::Display for FmtFunction<'_> {
                     ty,
                     name: match name {
                         Some(name) => Some(name.to_owned()),
-                        None if name_all_args => Some(format!("_{idx}")),
+                        None if name_all_args => Some(format!("arg{idx}")),
                         None => None,
                     }
                     .as_deref()
@@ -175,7 +180,10 @@ impl std::fmt::Display for FmtFunction<'_> {
 
         FmtType {
             macro_context,
-            ty: &signature.return_type,
+            ty: signature
+                .return_type
+                .as_ref()
+                .unwrap_or(&orco::Type::Symbol("void".into())),
             name: Some(&sig_noret),
         }
         .fmt(f)

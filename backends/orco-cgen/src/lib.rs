@@ -43,7 +43,7 @@ pub trait BackendContext {
     fn define(&self, code: String);
 
     /// Intern the following type and it's insides.
-    fn intern_type(&self, ty: &mut orco::Type, named: bool, replace_unit: bool);
+    fn intern_type(&self, ty: &mut orco::Type, named: bool);
 }
 
 /// Get the name of the symbol used in generated code

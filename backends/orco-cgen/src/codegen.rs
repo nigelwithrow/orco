@@ -75,7 +75,7 @@ impl<'a, B: BackendContext> Codegen<'a, B> {
             );
 
             for (idx, (name, ty)) in signature.params.iter().enumerate() {
-                let name = name.clone().unwrap_or_else(|| format!("_{idx}"));
+                let name = name.clone().unwrap_or_else(|| format!("arg{idx}"));
                 this.variables.push(VariableInfo {
                     ty: ty.clone(),
                     name,
@@ -96,13 +96,11 @@ impl<'a, B: BackendContext> Codegen<'a, B> {
         }
     }
 
-    /// Add a statement
-    pub fn stmt(&mut self, statement: &str) {
-        for line in statement.split('\n') {
-            self.indent();
-            self.body.push_str(line);
-            self.body.push('\n');
-        }
+    /// Add a line to the source code
+    pub fn line(&mut self, args: std::fmt::Arguments<'_>) {
+        self.indent();
+        std::fmt::write(&mut self.body, args).unwrap();
+        self.body.push('\n');
     }
 
     /// Make a value and put it in [`Self::values`]
@@ -145,29 +143,48 @@ impl<'a, B: BackendContext> Codegen<'a, B> {
                 let value = self.use_value(value);
                 ValueInfo::new(
                     format!("*({})", value.expression),
-                    match self.ctx.backend().inline_type_aliases(value.ty) {
+                    match self.ctx.backend().inline_type_aliases(value.ty, false) {
                         orco::Type::Ptr(ty, _) => *ty,
                         ty => panic!("trying to dereference a non-pointer type {ty:#?}"),
                     },
                 )
             }
-            oc::Place::Field(_, _) => todo!("field access"),
+            oc::Place::Field(place, idx) => {
+                let place = self.place(*place);
+                let mut fields = match self
+                    .ctx
+                    .backend()
+                    .inline_type_aliases(place.ty.clone(), true)
+                {
+                    orco::Type::Struct { fields } => fields,
+                    ty => panic!("trying to access field #{idx} on a non-struct type {ty:#?}"),
+                };
+                let (name, ty) = fields.swap_remove(idx);
+                let name = name.unwrap_or_else(|| format!("_{idx}"));
+                ValueInfo::new(format!("({}).{name}", place.expression), ty)
+            }
         }
     }
 }
 
 impl<B: BackendContext> oc::BodyCodegen for Codegen<'_, B> {
+    fn comment(&mut self, comment: &str) {
+        for line in comment.split('\n') {
+            self.line(format_args!("// {line}"));
+        }
+    }
+
     fn type_of(&self, id: usize) -> orco::Type {
         self.values[&id].ty.clone()
     }
 
     fn declare_var(&mut self, mut ty: orco::Type) -> oc::Variable {
-        self.ctx.intern_type(&mut ty, false, false);
+        self.ctx.intern_type(&mut ty, false);
         let id = self.variables.len();
-        let name = format!("v{}", id);
+        let name = format!("var{}", id);
 
         if !matches!(&ty, orco::Type::Struct { fields } if fields.is_empty()) {
-            self.stmt(&format!(
+            self.line(format_args!(
                 "{};",
                 crate::types::FmtType {
                     macro_context: false,
@@ -193,7 +210,7 @@ impl<B: BackendContext> oc::BodyCodegen for Codegen<'_, B> {
     fn assign(&mut self, target: oc::Place, value: oc::Value) {
         let target = self.place(target).expression;
         let value = self.use_value(value).expression;
-        self.stmt(&format!("{target} = {value}"));
+        self.line(format_args!("{target} = {value}"));
     }
 
     fn iconst(&mut self, value: i128, size: orco::types::IntegerSize) -> oc::Value {
@@ -219,11 +236,27 @@ impl<B: BackendContext> oc::BodyCodegen for Codegen<'_, B> {
     fn return_(&mut self, value: Option<oc::Value>) {
         if let Some(value) = value {
             let value = self.use_value(value).expression;
-            self.stmt(&format!("return {value};"));
+            self.line(format_args!("return {value};"));
         } else {
-            self.stmt("return;");
+            self.line(format_args!("return;"));
         }
     }
+
+    fn acf(&mut self) -> &mut impl oc::ACFCodegen {
+        self
+    }
+}
+
+impl<B: BackendContext> oc::ACFCodegen for Codegen<'_, B> {
+    fn alloc_label(&mut self) -> oc::Label {
+        oc::Label(0)
+    }
+
+    fn label(&mut self, label: oc::Label) {}
+
+    fn jump(&mut self, label: oc::Label) {}
+
+    fn cjump(&mut self, condition: oc::Value, label: oc::Label) {}
 }
 
 impl<B: BackendContext> std::ops::Drop for Codegen<'_, B> {

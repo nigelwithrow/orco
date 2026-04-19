@@ -24,7 +24,7 @@ pub enum Place {
     /// Pointer dereference
     Deref(Value),
     /// Field access, using 0-based field index
-    Field(Value, usize),
+    Field(Box<Place>, usize),
 }
 
 impl From<Variable> for Place {
@@ -35,6 +35,11 @@ impl From<Variable> for Place {
 
 /// Trait for generating code within a function
 pub trait BodyCodegen {
+    /// Leave a comment. Mainly for source2source backends
+    fn comment(&mut self, comment: &str) {
+        let _ = comment;
+    }
+
     /// Get type of the value. Takes in [`Value::0`] to not consume the value
     fn type_of(&self, id: usize) -> Type;
 

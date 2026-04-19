@@ -28,9 +28,9 @@ pub enum Type {
         /// Types of parameters
         params: Vec<Type>,
         /// Return type
-        return_type: Box<Type>,
+        return_type: Option<Box<Type>>,
     },
-    /// An error type
+    /// An error type, can also be used in a pointer to make it a pointer to anything
     Error,
 }
 
@@ -76,7 +76,9 @@ impl Type {
                     .map(Type::hashable_name)
                     .collect::<Vec<_>>()
                     .join(", "),
-                return_type.hashable_name()
+                return_type
+                    .as_deref()
+                    .map_or("void".to_owned(), Type::hashable_name)
             ),
             Type::Error => "<error>".to_owned(),
         }

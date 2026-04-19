@@ -62,7 +62,7 @@ fn convert_fn_attrs(
             ra::InlineAttr::Hint => oa::Inlining::Hint,
             ra::InlineAttr::Always => oa::Inlining::Always,
             ra::InlineAttr::Never => oa::Inlining::Never,
-            ra::InlineAttr::Force { attr_span, reason } => oa::Inlining::Always,
+            ra::InlineAttr::Force { .. } => oa::Inlining::Always,
         },
     }
 }
@@ -82,7 +82,10 @@ pub fn function(
     let mut params = Vec::with_capacity(sig.inputs().len());
     for (i, ty) in sig.inputs().iter().enumerate() {
         let name = names::pat_name(body.params[i].pat);
-        params.push((name, types::convert(tcx, *ty)));
+        let Some(ty) = types::convert(tcx, *ty) else {
+            continue;
+        };
+        params.push((name, ty));
     }
 
     declare_w_generics!(tcx backend key {
@@ -105,10 +108,10 @@ pub fn foreign_function(
 
     let mut params = Vec::with_capacity(sig.inputs().len());
     for (i, ty) in sig.inputs().iter().enumerate() {
-        params.push((
-            idents[i].map(|ident| ident.as_str().to_owned()),
-            types::convert(tcx, *ty),
-        ));
+        let Some(ty) = types::convert(tcx, *ty) else {
+            continue;
+        };
+        params.push((idents[i].map(|ident| ident.as_str().to_owned()), ty));
     }
 
     declare_w_generics!(tcx backend key {
@@ -128,16 +131,16 @@ pub fn struct_(tcx: TyCtxt, backend: &impl DeclarationBackend, key: rustc_hir::d
             .unwrap()
             .fields
             .iter()
-            .map(|field| {
+            .filter_map(|field| {
                 let name = field.name.to_string();
-                (
+                Some((
                     if name.chars().next().is_none_or(|c| c.is_ascii_digit()) {
                         None
                     } else {
                         Some(name)
                     },
-                    types::convert(tcx, tcx.type_of(field.did).instantiate_identity()),
-                )
+                    types::convert(tcx, tcx.type_of(field.did).instantiate_identity())?,
+                ))
             })
             .collect::<Vec<_>>(),
     };

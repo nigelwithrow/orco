@@ -29,13 +29,15 @@ impl Backend {
 
     /// If ty is a type alias (but not a struct), inlines it.
     /// Does not inline inner types
-    pub fn inline_type_aliases(&self, ty: orco::Type) -> orco::Type {
+    pub fn inline_type_aliases(&self, ty: orco::Type, inline_struct: bool) -> orco::Type {
         match ty {
             orco::Type::Symbol(symbol) => {
                 let symbol = self.get_symbol(symbol);
                 match symbol.get() {
-                    SymbolKind::Type(ty) if !matches!(ty, orco::Type::Struct { .. }) => {
-                        self.inline_type_aliases(ty.clone())
+                    SymbolKind::Type(ty)
+                        if inline_struct || !matches!(ty, orco::Type::Struct { .. }) =>
+                    {
+                        self.inline_type_aliases(ty.clone(), inline_struct)
                     }
                     _ => ty,
                 }
@@ -65,25 +67,18 @@ impl BackendContext for Backend {
         self.definitions.push(code);
     }
 
-    fn intern_type(&self, ty: &mut orco::Type, named: bool, replace_unit: bool) {
+    fn intern_type(&self, ty: &mut orco::Type, named: bool) {
         match ty {
             orco::Type::Array(ty, _) => {
-                self.intern_type(ty.as_mut(), false, false) // TODO: More work on arrays
+                self.intern_type(ty.as_mut(), false) // TODO: More work on arrays
             }
             orco::Type::Struct { fields } if named => {
                 for (_, ty) in fields {
-                    self.intern_type(ty, false, false);
+                    self.intern_type(ty, false);
                 }
             }
             orco::Type::Struct { fields } if !named => {
-                if fields.is_empty() {
-                    if replace_unit {
-                        *ty = orco::Type::Symbol("void".into());
-                    }
-                    return;
-                }
-
-                let sym = orco::Symbol::new(&format!("s_{}", ty.hashable_name()));
+                let sym = orco::Symbol::new(&format!("s {}", ty.hashable_name()));
                 let ty = std::mem::replace(ty, orco::Type::Symbol(sym));
                 if self.interned.insert_sync(sym).is_ok() {
                     use orco::DeclarationBackend as _;
@@ -100,13 +95,15 @@ impl orco::DeclarationBackend for Backend {
         &self,
         name: orco::Symbol,
         mut params: Vec<(Option<String>, orco::Type)>,
-        mut return_type: orco::Type,
+        mut return_type: Option<orco::Type>,
         attrs: orco::attrs::FunctionAttributes,
     ) {
         for (_, ty) in &mut params {
-            self.intern_type(ty, false, false);
+            self.intern_type(ty, false);
         }
-        self.intern_type(&mut return_type, false, true);
+        if let Some(rt) = &mut return_type {
+            self.intern_type(rt, false);
+        }
         self.symbol(
             name,
             SymbolKind::Function(symbols::FunctionSignature {
@@ -118,7 +115,7 @@ impl orco::DeclarationBackend for Backend {
     }
 
     fn type_(&self, name: orco::Symbol, mut ty: orco::Type) {
-        self.intern_type(&mut ty, true, false);
+        self.intern_type(&mut ty, true);
         self.symbol(name, SymbolKind::Type(ty));
     }
 

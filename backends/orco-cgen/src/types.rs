@@ -115,7 +115,9 @@ impl std::fmt::Display for FmtType<'_> {
                     "{}",
                     FmtType {
                         macro_context,
-                        ty: return_type,
+                        ty: return_type
+                            .as_deref()
+                            .unwrap_or(&orco::Type::Symbol("void".into())),
                         name: Some(&format!(
                             "{}({})",
                             name.unwrap_or_default(),

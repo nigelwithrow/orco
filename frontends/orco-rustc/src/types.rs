@@ -3,9 +3,9 @@ use crate::names::convert_path;
 
 /// Convert a type from rust MIR to orco.
 /// Pass your backend as the type source
-pub fn convert(tcx: TyCtxt, ty: rustc_middle::ty::Ty) -> orco::Type {
+pub fn convert(tcx: TyCtxt, ty: rustc_middle::ty::Ty) -> Option<orco::Type> {
     use rustc_middle::ty::{FloatTy, IntTy, TyKind, UintTy};
-    match ty.kind() {
+    Some(match ty.kind() {
         TyKind::Bool => orco::Type::Bool,
         TyKind::Char => todo!(),
         TyKind::Int(sz) => orco::Type::Integer(match sz {
@@ -43,13 +43,14 @@ pub fn convert(tcx: TyCtxt, ty: rustc_middle::ty::Ty) -> orco::Type {
         ),
         TyKind::Foreign(..) => todo!(),
         TyKind::Str => todo!(),
-        TyKind::Array(ty, _size) => orco::Type::Array(Box::new(convert(tcx, *ty)), 42), // TODO: Use size!
+        TyKind::Array(ty, _size) => orco::Type::Array(Box::new(convert(tcx, *ty)?), 42), // TODO: Use size!
         TyKind::Pat(..) => todo!(),
         TyKind::Slice(..) => todo!(),
         TyKind::RawPtr(..) => todo!(),
-        TyKind::Ref(_, ty, mutability) => {
-            orco::Type::Ptr(Box::new(convert(tcx, *ty)), mutability.is_mut())
-        }
+        TyKind::Ref(_, ty, mutability) => orco::Type::Ptr(
+            Box::new(convert(tcx, *ty).unwrap_or(orco::Type::Error)),
+            mutability.is_mut(),
+        ),
         TyKind::FnDef(..) => todo!(),
         TyKind::FnPtr(..) => todo!(),
         TyKind::UnsafeBinder(..) => todo!(),
@@ -59,20 +60,22 @@ pub fn convert(tcx: TyCtxt, ty: rustc_middle::ty::Ty) -> orco::Type {
         TyKind::Coroutine(..) => todo!(),
         TyKind::CoroutineWitness(..) => todo!(),
         TyKind::Never => todo!(),
+        TyKind::Tuple(v) if v.is_empty() => return None,
         TyKind::Tuple(v) => orco::Type::Struct {
             fields: v
                 .iter()
                 .enumerate()
-                .map(|(idx, ty)| {
+                .filter_map(|(idx, ty)| {
                     let name = idx.to_string();
-                    (
+                    let ty = convert(tcx, ty)?;
+                    Some((
                         if name.chars().next().is_none_or(|c| c.is_ascii_digit()) {
                             None
                         } else {
                             Some(name)
                         },
-                        convert(tcx, ty),
-                    )
+                        ty,
+                    ))
                 })
                 .collect(),
         },
@@ -82,5 +85,5 @@ pub fn convert(tcx: TyCtxt, ty: rustc_middle::ty::Ty) -> orco::Type {
         TyKind::Placeholder(..) => todo!(),
         TyKind::Infer(var) => panic!("inference variable {var} found in type"),
         TyKind::Error(..) => orco::Type::Error,
-    }
+    })
 }
