@@ -1,11 +1,11 @@
-use crate::{BackendContext, SymbolKind};
+use crate::{Backend, SymbolKind};
 use orco::codegen as oc;
 use std::collections::HashMap;
 
 /// Implementation of [`orco::BodyCodegen`]
-pub struct Codegen<'a, B: BackendContext> {
+pub struct Codegen<'a, 'b: 'a> {
     /// Backend context that will recieve the symbol once codegen is done
-    pub ctx: &'a B,
+    pub backend: &'a Backend<'b>,
     /// Symbol name
     pub name: orco::Symbol,
 
@@ -44,11 +44,11 @@ impl ValueInfo {
     }
 }
 
-impl<'a, B: BackendContext> Codegen<'a, B> {
+impl<'a, 'b: 'a> Codegen<'a, 'b> {
     #[allow(missing_docs)]
-    pub fn new(ctx: &'a B, name: orco::Symbol) -> Self {
+    pub fn new(ctx: &'a Backend<'b>, name: orco::Symbol) -> Self {
         let mut this = Self {
-            ctx,
+            backend: ctx,
             name,
 
             body: "{\n".to_owned(),
@@ -61,15 +61,14 @@ impl<'a, B: BackendContext> Codegen<'a, B> {
             next_value_index: 0,
         };
 
-        let symbol = ctx.backend().get_symbol(this.name);
-        let symbol = symbol.get().skip_generics();
+        let symbol = ctx.get_symbol(this.name);
+        let symbol = symbol.get();
         if let SymbolKind::Function(signature) = symbol {
             this.body = format!(
                 "{} {{\n",
                 crate::symbols::FmtFunction {
-                    macro_context: ctx.macro_context(),
-                    name: &ctx.symname(name), // FIXME: Generics
-                    signature,
+                    name: &crate::symname(name), // FIXME: Generics
+                    signature: &signature,
                     name_all_args: true
                 }
             );
@@ -130,9 +129,9 @@ impl<'a, B: BackendContext> Codegen<'a, B> {
                 ValueInfo::new(variable.name.clone(), variable.ty.clone())
             }
             oc::Place::Global(name) => {
-                let symbol = self.ctx.backend().get_symbol(name);
+                let symbol = self.backend.get_symbol(name);
                 ValueInfo::new(
-                    self.ctx.symname(name),
+                    crate::symname(name),
                     match symbol.get() {
                         SymbolKind::Function(signature) => signature.ptr_type(),
                         _ => panic!("trying to access {name} as a value, but it is {symbol:?}"),
@@ -142,8 +141,8 @@ impl<'a, B: BackendContext> Codegen<'a, B> {
             oc::Place::Deref(value) => {
                 let value = self.use_value(value);
                 ValueInfo::new(
-                    format!("*({})", value.expression),
-                    match self.ctx.backend().inline_type_aliases(value.ty, false) {
+                    format!("(*{})", value.expression),
+                    match self.backend.inline_type_aliases(value.ty, false) {
                         orco::Type::Ptr(ty, _) => *ty,
                         ty => panic!("trying to dereference a non-pointer type {ty:#?}"),
                     },
@@ -151,23 +150,19 @@ impl<'a, B: BackendContext> Codegen<'a, B> {
             }
             oc::Place::Field(place, idx) => {
                 let place = self.place(*place);
-                let mut fields = match self
-                    .ctx
-                    .backend()
-                    .inline_type_aliases(place.ty.clone(), true)
-                {
+                let mut fields = match self.backend.inline_type_aliases(place.ty.clone(), true) {
                     orco::Type::Struct { fields } => fields,
                     ty => panic!("trying to access field #{idx} on a non-struct type {ty:#?}"),
                 };
                 let (name, ty) = fields.swap_remove(idx);
                 let name = name.unwrap_or_else(|| format!("_{idx}"));
-                ValueInfo::new(format!("({}).{name}", place.expression), ty)
+                ValueInfo::new(format!("{}.{name}", place.expression), ty)
             }
         }
     }
 }
 
-impl<B: BackendContext> oc::BodyCodegen for Codegen<'_, B> {
+impl oc::BodyCodegen for Codegen<'_, '_> {
     fn comment(&mut self, comment: &str) {
         for line in comment.split('\n') {
             self.line(format_args!("// {line}"));
@@ -179,7 +174,7 @@ impl<B: BackendContext> oc::BodyCodegen for Codegen<'_, B> {
     }
 
     fn declare_var(&mut self, mut ty: orco::Type) -> oc::Variable {
-        self.ctx.intern_type(&mut ty, false);
+        self.backend.intern_type(&mut ty, false);
         let id = self.variables.len();
         let name = format!("var{}", id);
 
@@ -187,7 +182,6 @@ impl<B: BackendContext> oc::BodyCodegen for Codegen<'_, B> {
             self.line(format_args!(
                 "{};",
                 crate::types::FmtType {
-                    macro_context: false,
                     ty: &ty,
                     name: Some(&name),
                 }
@@ -210,7 +204,7 @@ impl<B: BackendContext> oc::BodyCodegen for Codegen<'_, B> {
     fn assign(&mut self, target: oc::Place, value: oc::Value) {
         let target = self.place(target).expression;
         let value = self.use_value(value).expression;
-        self.line(format_args!("{target} = {value}"));
+        self.line(format_args!("{target} = {value};"));
     }
 
     fn iconst(&mut self, value: i128, size: orco::types::IntegerSize) -> oc::Value {
@@ -233,6 +227,39 @@ impl<B: BackendContext> oc::BodyCodegen for Codegen<'_, B> {
         self.mk_value(place)
     }
 
+    fn call(&mut self, func: oc::Value, args: Vec<oc::Value>) -> Option<oc::Value> {
+        let func = self.use_value(func);
+        let ty = match func.ty {
+            orco::Type::FnPtr {
+                params,
+                return_type,
+            } => {
+                assert_eq!(params.len(), args.len());
+                return_type
+            }
+            ty => panic!("trying to call {ty:#?} (which is not a function)"),
+        };
+
+        let mut call = func.expression;
+        call.push('(');
+        for (idx, arg) in args.into_iter().enumerate() {
+            let arg = self.use_value(arg);
+            if idx > 0 {
+                call.push_str(", ");
+            }
+            call.push_str(&arg.expression);
+        }
+        call.push(')');
+
+        match ty {
+            Some(rt) => Some(self.mk_value(ValueInfo::new(call, *rt))),
+            None => {
+                self.line(format_args!("{call};"));
+                None
+            }
+        }
+    }
+
     fn return_(&mut self, value: Option<oc::Value>) {
         if let Some(value) = value {
             let value = self.use_value(value).expression;
@@ -247,21 +274,27 @@ impl<B: BackendContext> oc::BodyCodegen for Codegen<'_, B> {
     }
 }
 
-impl<B: BackendContext> oc::ACFCodegen for Codegen<'_, B> {
+impl oc::ACFCodegen for Codegen<'_, '_> {
     fn alloc_label(&mut self) -> oc::Label {
         oc::Label(0)
     }
 
-    fn label(&mut self, label: oc::Label) {}
+    fn label(&mut self, label: oc::Label) {
+        let _ = label;
+    }
 
-    fn jump(&mut self, label: oc::Label) {}
+    fn jump(&mut self, label: oc::Label) {
+        let _ = label;
+    }
 
-    fn cjump(&mut self, condition: oc::Value, label: oc::Label) {}
+    fn cjump(&mut self, condition: oc::Value, label: oc::Label) {
+        let _ = (condition, label);
+    }
 }
 
-impl<B: BackendContext> std::ops::Drop for Codegen<'_, B> {
+impl std::ops::Drop for Codegen<'_, '_> {
     fn drop(&mut self) {
         self.body.push('}');
-        self.ctx.define(std::mem::take(&mut self.body));
+        self.backend.define(std::mem::take(&mut self.body));
     }
 }

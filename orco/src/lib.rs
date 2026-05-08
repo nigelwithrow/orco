@@ -15,10 +15,14 @@ pub use types::Type;
 /// Attributes are a way to pass information about symbols to the backend
 pub mod attrs;
 
+/// Some backend building blocks
+pub mod impls;
+
 /// Declare items before defining them.
 /// Think of it as an interface to generate C headers.
-pub trait DeclarationBackend: Sync {
-    /// Declare a function (does not have to be defined within this linker unit)
+pub trait DeclarationBackend<'a>: Sync {
+    /// Declare a function (does not have to be defined within this linker unit).
+    /// Set `return_type` to [None] if require no return value.
     fn function(
         &self,
         name: Symbol,
@@ -30,11 +34,12 @@ pub trait DeclarationBackend: Sync {
     /// Declre a type alias, should be used to declare compound types as well
     fn type_(&self, name: Symbol, ty: Type);
 
-    /// Returns a backend that wraps every symbol in a macro with generic params.
-    /// Nestable. Appends #param to all symbol names.
-    /// e.g. if you provide `param1, param2` as params and then declare symbol `sym`,
-    /// the backend is going to generate a symbol `sym#param1#param2`.
-    /// Same syntax is used if you want to use generic params. So in `another#param1`, `param1`
-    /// is going to be substituted for the parameter value during instantiation
-    fn generic(&self, params: Vec<String>) -> impl DeclarationBackend;
+    /// Registers a macro. `func` will now be
+    /// called with macro args on [`Self::invoke_macro`].
+    /// If `call_once` is set, will only be called once for a set of args,
+    /// useful for generics
+    fn macro_(&self, name: Symbol, func: impl Fn(&[Type]) + Send + Sync + 'a, call_once: bool);
+
+    /// Invokes a macro registered by [`Self::macro_`]
+    fn invoke_macro(&self, name: Symbol, args: &[Type]);
 }

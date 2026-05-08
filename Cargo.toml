@@ -14,3 +14,5 @@ repository = "https://github.com/InfiniteCoder01/orco"
 [workspace.dependencies]
 orco = { path = "orco" }
 orco-cgen = { path = "backends/orco-cgen" }
+
+scc = "3.4.2"

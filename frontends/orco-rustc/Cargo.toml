@@ -10,5 +10,5 @@ crate-type = ["cdylib"]
 rustc_private = true
 
 [dependencies]
-orco = { workspace = true }
-orco-cgen = { workspace = true }
+orco.workspace = true
+orco-cgen.workspace = true

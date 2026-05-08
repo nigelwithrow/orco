@@ -27,6 +27,13 @@ pub enum Place {
     Field(Box<Place>, usize),
 }
 
+impl Place {
+    /// A helper function to create [`Self::Field`]
+    pub fn field(self, index: usize) -> Self {
+        Self::Field(Box::new(self), index)
+    }
+}
+
 impl From<Variable> for Place {
     fn from(value: Variable) -> Self {
         Self::Variable(value)
@@ -66,6 +73,9 @@ pub trait BodyCodegen {
 
     /// Read value from a [Place]
     fn read(&mut self, place: Place) -> Value;
+
+    /// Call a function (or an intrinsic)
+    fn call(&mut self, func: Value, args: Vec<Value>) -> Option<Value>;
 
     /// Return a value from the current function.
     fn return_(&mut self, value: Option<Value>);

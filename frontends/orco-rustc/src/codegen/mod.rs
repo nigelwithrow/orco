@@ -15,6 +15,8 @@ struct CodegenCtx<'tcx, CG> {
 
 impl<'tcx, CG: oc::BodyCodegen> CodegenCtx<'tcx, CG> {
     fn codegen_statement(&mut self, stmt: &rustc_middle::mir::Statement<'tcx>) {
+        self.codegen.comment(&format!("{stmt:#?}"));
+
         use rustc_middle::mir::StatementKind;
         let (place, rvalue) = match &stmt.kind {
             StatementKind::Assign(assign) => assign.as_ref(),
@@ -77,13 +79,18 @@ impl<'tcx, CG: oc::BodyCodegen> CodegenCtx<'tcx, CG> {
                 }
             }
             Rvalue::BinaryOp(op, operands) => {
-                let params = vec![self.op(&operands.0), self.op(&operands.1)];
-                // self.codegen.call(
-                //     // TODO: Operators themselves
-                //     oc::Operand::Place(oc::Place::Global(format!("{op:?}").into())),
-                //     params,
-                //     self.place(*place),
-                // );
+                let params = self
+                    .op(&operands.0)
+                    .into_iter()
+                    .chain(self.op(&operands.1))
+                    .collect();
+                let op = self
+                    .codegen
+                    .read(oc::Place::Global(format!("{op:?}").into())); // TODO: Operators themselves
+                let value = self.codegen.call(op, params);
+                if let (Some(place), Some(value)) = (self.place(*place), value) {
+                    self.codegen.assign(place, value);
+                }
             }
             _ => eprintln!("TODO: {stmt:?}"), // TODO
         }
@@ -101,16 +108,27 @@ impl<'tcx, CG: oc::BodyCodegen> CodegenCtx<'tcx, CG> {
         match &block.terminator().kind {
             TerminatorKind::Goto { target } => self.codegen.acf().jump(oc::Label(target.index())),
             TerminatorKind::SwitchInt { discr, targets } => {
-                // TODO!!!
-                // let lhs = self.op(discr);
+                let lhs = self.op(discr).unwrap();
+                let lhs = self.codegen.mk_tmp(lhs);
+                let (size, signed) = match self.codegen.type_of(lhs.0) {
+                    orco::Type::Integer(size) => (size, true),
+                    orco::Type::Unsigned(size) => (size, false),
+                    ty => panic!("expected integer, got {ty:#?}"),
+                };
                 // for (value, target) in targets.iter() {
-                //     self.codegen
-                //         .acf()
-                //         .cjump(lhs.clone(), value, true, oc::Label(target.index()));
-                // }
+                //     let rhs = if signed {
+                //         self.codegen.iconst(value as _, size)
+                //     } else {
+                //         self.codegen.uconst(value, size)
+                //     };
+                // self.codegen.call(self.codegen.intrinsic(Eq), vec![]);
                 // self.codegen
                 //     .acf()
-                //     .jump(oc::Label(targets.otherwise().index()));
+                //     .cjump(lhs.clone(), value, true, oc::Label(target.index()));
+                // }
+                self.codegen
+                    .acf()
+                    .jump(oc::Label(targets.otherwise().index()));
             }
             TerminatorKind::UnwindResume => todo!(),
             TerminatorKind::UnwindTerminate(..) => todo!(),
@@ -125,10 +143,10 @@ impl<'tcx, CG: oc::BodyCodegen> CodegenCtx<'tcx, CG> {
                 // TODO
             }
             TerminatorKind::Call {
-                func,
-                args,
-                destination,
-                target,
+                // func,
+                // args,
+                // destination,
+                // target,
                 ..
             } => {
                 // TODO!!!
@@ -213,7 +231,7 @@ pub fn codegen(
                     body(tcx, backend.function(name), tcx.optimized_mir(key));
                 }
                 IK::GlobalAsm { .. } => (),
-                IK::Trait(..) => (),
+                IK::Trait { .. } => (),
                 IK::Impl(..) => (),
                 _ => (),
             }

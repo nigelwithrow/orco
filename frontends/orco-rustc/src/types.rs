@@ -2,7 +2,6 @@ use crate::TyCtxt;
 use crate::names::convert_path;
 
 /// Convert a type from rust MIR to orco.
-/// Pass your backend as the type source
 pub fn convert(tcx: TyCtxt, ty: rustc_middle::ty::Ty) -> Option<orco::Type> {
     use rustc_middle::ty::{FloatTy, IntTy, TyKind, UintTy};
     Some(match ty.kind() {

@@ -8,5 +8,5 @@ description.workspace = true
 repository.workspace = true
 
 [dependencies]
-scc = "3.4.2"
+scc.workspace = true
 sinter = "0.1.1"

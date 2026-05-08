@@ -3,18 +3,13 @@
 /// also wraps optional name (variable name, parameter name, type name in typedef)
 #[allow(missing_docs)]
 pub struct FmtType<'a> {
-    pub macro_context: bool,
     pub ty: &'a orco::Type,
     pub name: Option<&'a str>,
 }
 
 impl std::fmt::Display for FmtType<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let FmtType {
-            macro_context,
-            ty,
-            name,
-        } = *self;
+        let FmtType { ty, name } = *self;
 
         use orco::Type as OT;
         use orco::types::IntegerSize as IS;
@@ -52,18 +47,10 @@ impl std::fmt::Display for FmtType<'_> {
                 }
             },
             OT::Bool => write!(f, "bool"),
-            OT::Symbol(sym) => write!(f, "{}", crate::symname(*sym, macro_context)),
+            OT::Symbol(sym) => write!(f, "{}", crate::symname(*sym)),
 
             OT::Array(ty, sz) => {
-                return write!(
-                    f,
-                    "{}[{sz}]",
-                    FmtType {
-                        macro_context,
-                        ty,
-                        name
-                    }
-                );
+                return write!(f, "{}[{sz}]", FmtType { ty, name });
             }
             OT::Struct { fields } if fields.is_empty() => {
                 write!(f, "struct {{}}")
@@ -75,7 +62,6 @@ impl std::fmt::Display for FmtType<'_> {
                         f,
                         "  {};",
                         FmtType {
-                            macro_context,
                             ty,
                             name: Some(
                                 name.as_deref()
@@ -93,7 +79,6 @@ impl std::fmt::Display for FmtType<'_> {
                     f,
                     "{}",
                     FmtType {
-                        macro_context,
                         ty,
                         name: Some(&format!(
                             "*{}{}",
@@ -114,7 +99,6 @@ impl std::fmt::Display for FmtType<'_> {
                     f,
                     "{}",
                     FmtType {
-                        macro_context,
                         ty: return_type
                             .as_deref()
                             .unwrap_or(&orco::Type::Symbol("void".into())),
@@ -123,14 +107,7 @@ impl std::fmt::Display for FmtType<'_> {
                             name.unwrap_or_default(),
                             params
                                 .iter()
-                                .map(|ty| {
-                                    FmtType {
-                                        ty,
-                                        macro_context,
-                                        name,
-                                    }
-                                    .to_string()
-                                })
+                                .map(|ty| FmtType { ty, name }.to_string())
                                 .collect::<Vec<_>>()
                                 .join(", ")
                         )),

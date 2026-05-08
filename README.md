@@ -22,10 +22,12 @@ You can watch me do this live on [![twitch](https://assets.twitch.tv/assets/favi
 Currently working with rust frontend and C backend (reference backend),
 going through some of [rust by example](<https://doc.rust-lang.org/stable/rust-by-example/>) and figuring out generics.
 
-[x] (orco): remake codegen API
-[x] (cgen): implement new codegen API
-[ ] (rustc): use new codegen API
-[ ] (cgen): implement value flushing
-[ ] (cgen): implement dependency sorting for symbol declarations
-[ ] (orco): Constant expressions inside types (f.e. array size)
-[ ] (rustc): implement missing features (full implementation?)
+[x] orco: remake codegen API
+[x] cgen: implement new codegen API
+[x] rustc: use new codegen API
+[ ] orco: new macro system
+[ ] cgen: implement value flushing
+[ ] cgen: implement dependency sorting for symbol declarations
+[ ] orco: regular control flow
+[ ] orco: Constant expressions inside types (f.e. array size)
+[ ] rustc: implement missing features (full implementation?)

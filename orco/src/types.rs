@@ -94,3 +94,37 @@ pub enum IntegerSize {
     /// Kinda like `usize`/`isize` in rust or `size_t`/`ssize_t` in C
     Size,
 }
+
+/// Function signature without a name
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FunctionSignature {
+    /// Parameter types with optional names
+    pub params: Vec<(Option<String>, Type)>,
+    /// Return type
+    pub return_type: Option<Type>,
+    /// Function attributes
+    pub attrs: crate::attrs::FunctionAttributes,
+}
+
+impl FunctionSignature {
+    #[allow(missing_docs)]
+    pub fn new(
+        params: Vec<(Option<String>, Type)>,
+        return_type: Option<Type>,
+        attrs: crate::attrs::FunctionAttributes,
+    ) -> Self {
+        Self {
+            params,
+            return_type,
+            attrs,
+        }
+    }
+
+    /// Get function pointer type for this function signature
+    pub fn ptr_type(&self) -> Type {
+        Type::FnPtr {
+            params: self.params.iter().map(|(_, ty)| ty.clone()).collect(),
+            return_type: self.return_type.clone().map(Box::new),
+        }
+    }
+}

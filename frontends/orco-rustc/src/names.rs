@@ -1,6 +1,6 @@
 use crate::TyCtxt;
 
-/// Convert path to [`orco::Symbol`]
+/// Convert path to a string
 pub fn convert_path(tcx: TyCtxt, def_id: rustc_hir::def_id::DefId) -> String {
     let path = tcx.def_path(def_id);
     let mut s = tcx.crate_name(path.krate).to_string();

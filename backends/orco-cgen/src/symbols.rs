@@ -1,48 +1,25 @@
 use crate::FmtType;
+use orco::types::FunctionSignature;
 
-/// Main symbol enum
-#[derive(Clone, Debug, PartialEq)]
+/// Reference to a declaration
+#[derive(Debug)]
 pub enum SymbolKind {
     /// Function, see [FunctionSignature]
     Function(FunctionSignature),
     /// Type alias, aka typedef
     Type(orco::Type),
-    /// Macro
-    Generic {
-        /// Generic param names
-        params: Vec<String>,
-        /// Wrapped symbol
-        symbol: Box<SymbolKind>,
-    },
-}
-
-impl SymbolKind {
-    /// Skip generics and return the underlying symbol. Similar to rustc's skip_binders
-    pub fn skip_generics(&self) -> &SymbolKind {
-        match self {
-            SymbolKind::Generic { symbol, .. } => symbol.skip_generics(),
-            symbol => symbol,
-        }
-    }
 }
 
 /// Formats a symbol for display in C language
 #[allow(missing_docs)]
 pub struct FmtSymbol<'a> {
-    pub backend: &'a crate::Backend,
-    pub macro_context: bool,
     pub name: &'a str,
     pub kind: &'a SymbolKind,
 }
 
 impl std::fmt::Display for FmtSymbol<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let FmtSymbol {
-            backend,
-            macro_context,
-            name,
-            kind,
-        } = *self;
+        let FmtSymbol { name, kind } = *self;
 
         match kind {
             SymbolKind::Function(signature) => {
@@ -50,7 +27,6 @@ impl std::fmt::Display for FmtSymbol<'_> {
                     f,
                     "{};",
                     FmtFunction {
-                        macro_context,
                         name,
                         signature,
                         name_all_args: true,
@@ -62,72 +38,17 @@ impl std::fmt::Display for FmtSymbol<'_> {
                     f,
                     "typedef {};",
                     FmtType {
-                        macro_context,
                         ty,
                         name: Some(name)
                     }
                 )
             }
-            SymbolKind::Generic { params, symbol } => {
-                write!(f, "#define {}(", name)?;
-                for (idx, param) in params.iter().enumerate() {
-                    if idx > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{param}")?;
-                }
-                write!(f, ")")?;
-
-                let sym_name = std::iter::once(name)
-                    .chain(params.iter().map(String::as_ref))
-                    .collect::<Vec<_>>()
-                    .join("##_##");
-
-                let symbol = format!(
-                    "{}",
-                    FmtSymbol {
-                        backend,
-                        name: &sym_name,
-                        kind: symbol,
-                        macro_context: true,
-                    }
-                );
-                for line in symbol.split('\n') {
-                    writeln!(f, " \\")?;
-                    write!(f, "{line}")?;
-                }
-
-                Ok(())
-            }
-        }
-    }
-}
-
-/// Function signature without a name
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FunctionSignature {
-    /// Function attributes
-    pub attrs: orco::attrs::FunctionAttributes,
-    /// Parameter types with optional names
-    pub params: Vec<(Option<String>, orco::Type)>,
-    /// Return type
-    pub return_type: Option<orco::Type>,
-}
-
-impl FunctionSignature {
-    /// Get function pointer type for this function signature
-    pub fn ptr_type(&self) -> orco::Type {
-        orco::Type::FnPtr {
-            params: self.params.iter().map(|(_, ty)| ty.clone()).collect(),
-            return_type: self.return_type.clone().map(Box::new),
         }
     }
 }
 
 /// Formats function signature
 pub struct FmtFunction<'a> {
-    /// Is token pasting allowed? (see [`crate::BackendContext::macro_context`])
-    pub macro_context: bool,
     /// Function name
     pub name: &'a str,
     /// Function signature
@@ -139,7 +60,6 @@ pub struct FmtFunction<'a> {
 impl std::fmt::Display for FmtFunction<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let FmtFunction {
-            macro_context,
             name,
             signature,
             name_all_args,
@@ -165,7 +85,6 @@ impl std::fmt::Display for FmtFunction<'_> {
                 sig_noret,
                 "{}",
                 FmtType {
-                    macro_context,
                     ty,
                     name: match name {
                         Some(name) => Some(name.to_owned()),
@@ -179,7 +98,6 @@ impl std::fmt::Display for FmtFunction<'_> {
         write!(sig_noret, ")")?;
 
         FmtType {
-            macro_context,
             ty: signature
                 .return_type
                 .as_ref()
