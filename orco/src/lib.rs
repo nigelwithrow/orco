@@ -38,8 +38,10 @@ pub trait DeclarationBackend<'a>: Sync {
     /// called with macro args on [`Self::invoke_macro`].
     /// If `call_once` is set, will only be called once for a set of args,
     /// useful for generics
+    /// EXPERIMENTAL
     fn macro_(&self, name: Symbol, func: impl Fn(&[Type]) + Send + Sync + 'a, call_once: bool);
 
     /// Invokes a macro registered by [`Self::macro_`]
+    /// EXPERIMENTAL
     fn invoke_macro(&self, name: Symbol, args: &[Type]);
 }

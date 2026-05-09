@@ -24,41 +24,15 @@ pub mod types;
 /// rustc backend implementation
 pub mod rustc_backend;
 
+/// Intrinsic implementations
+pub mod intrinsics;
+
 /// Code generation is used to define functions and other items
 pub mod codegen;
 pub use codegen::codegen;
 
 use orco::DeclarationBackend;
 use rustc_middle::ty::TyCtxt;
-
-// fn wrap_generics<B: DeclarationBackend>(
-//     tcx: TyCtxt,
-//     backend: &B,
-//     key: rustc_hir::def_id::DefId,
-//     name: orco::Symbol,
-//     callback: impl Fn(&B, &[rustc_middle::Ty]),
-// ) {
-//     let generics = tcx.generics_of(key);
-//     backend.macro_(
-//         name,
-//         |backend, args| {
-//             //
-//         },
-//         true,
-//     );
-// }
-
-// macro_rules! declare_w_generics {
-//     ($tcx:ident $backend:ident $key:ident $decl:block) => {
-//         let generics = $tcx.generics_of($key);
-//         if generics.is_empty() $decl
-//         else {
-//             // let backend = $backend.generic(cvt_generics(generics));
-//             // let $backend = &backend;
-//             // backend.macro_($name, |$backend, params| $decl, );
-//         }
-//     };
-// }
 
 fn convert_fn_attrs(
     attrs: &rustc_middle::middle::codegen_fn_attrs::CodegenFnAttrs,

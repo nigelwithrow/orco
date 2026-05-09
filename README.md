@@ -25,6 +25,9 @@ going through some of [rust by example](<https://doc.rust-lang.org/stable/rust-b
 [x] orco: remake codegen API
 [x] cgen: implement new codegen API
 [x] rustc: use new codegen API
+[x] orco: intrinsics
+[ ] cgen: intrinsics
+[ ] rustc: intrinsics
 [ ] orco: new macro system
 [ ] cgen: implement value flushing
 [ ] cgen: implement dependency sorting for symbol declarations

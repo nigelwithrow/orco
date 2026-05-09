@@ -193,7 +193,7 @@ fn symname(symbol: orco::Symbol) -> String {
     // FIXME: conflicts...
     let symbol = &symbol[symbol.rfind([':', '.']).map_or(0, |i| i + 1)..];
 
-    let mut symbol = symbol.replace(|c: char| !c.is_ascii_alphanumeric() && c != '#', "_");
+    let mut symbol = symbol.replace(|c: char| !c.is_ascii_alphanumeric(), "_");
     if symbol.chars().next().is_none_or(|c| c.is_ascii_digit()) {
         symbol.insert(0, '_');
     }

@@ -40,6 +40,13 @@ impl From<Variable> for Place {
     }
 }
 
+impl Variable {
+    /// Quickly convert a variable to [Place]
+    pub fn place(self) -> Place {
+        self.into()
+    }
+}
+
 /// Trait for generating code within a function
 pub trait BodyCodegen {
     /// Leave a comment. Mainly for source2source backends
@@ -70,6 +77,8 @@ pub trait BodyCodegen {
     fn uconst(&mut self, value: u128, size: IntegerSize) -> Value;
     /// Float constant
     fn fconst(&mut self, value: f64, size: u16) -> Value;
+    /// Bool constant
+    fn bconst(&mut self, value: bool) -> Value;
 
     /// Read value from a [Place]
     fn read(&mut self, place: Place) -> Value;
@@ -79,9 +88,30 @@ pub trait BodyCodegen {
 
     /// Return a value from the current function.
     fn return_(&mut self, value: Option<Value>);
+
+    /// Get intrinsic functions, see [Intrinsics]
+    fn intrinsics(&mut self) -> impl Intrinsics + '_ {
+        impls::Unimplemented
+    }
+
     /// Get arbitrary control flow instructions, see [ACFCodegen]
-    fn acf(&mut self) -> &mut impl ACFCodegen {
-        Box::leak(Box::new(impls::Unsupported))
+    fn acf(&mut self) -> impl ACFCodegen + '_ {
+        impls::Unimplemented
+    }
+}
+
+/// Interface providing intrinsic function implementations.
+pub trait Intrinsics {
+    /// Integer/float addition
+    #[allow(unused_variables)]
+    fn add(&mut self, a: Value, b: Value) -> Value {
+        unimplemented!("add operation");
+    }
+
+    /// Integer/float multiplication
+    #[allow(unused_variables)]
+    fn mul(&mut self, a: Value, b: Value) -> Value {
+        unimplemented!("mul operation");
     }
 }
 

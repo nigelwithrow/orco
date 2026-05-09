@@ -1,9 +1,9 @@
 use crate::codegen;
 
 /// Use this when a feature is not supported. Default implementation
-pub struct Unsupported;
+pub struct Unimplemented;
 
-impl codegen::ACFCodegen for Unsupported {
+impl codegen::ACFCodegen for Unimplemented {
     fn alloc_label(&mut self) -> codegen::Label {
         unimplemented!("arbitrary control flow is not supported by this backend");
     }
@@ -20,3 +20,5 @@ impl codegen::ACFCodegen for Unsupported {
         unimplemented!("arbitrary control flow is not supported by this backend");
     }
 }
+
+impl codegen::Intrinsics for Unimplemented {}

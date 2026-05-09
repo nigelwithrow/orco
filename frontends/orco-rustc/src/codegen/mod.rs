@@ -79,14 +79,15 @@ impl<'tcx, CG: oc::BodyCodegen> CodegenCtx<'tcx, CG> {
                 }
             }
             Rvalue::BinaryOp(op, operands) => {
-                let params = self
+                let params: Vec<_> = self
                     .op(&operands.0)
                     .into_iter()
                     .chain(self.op(&operands.1))
                     .collect();
+                let ty = self.codegen.type_of(params[0].0).hashable_name();
                 let op = self
                     .codegen
-                    .read(oc::Place::Global(format!("{op:?}").into())); // TODO: Operators themselves
+                    .read(oc::Place::Global(format!("__{op:?}#{ty}").into()));
                 let value = self.codegen.call(op, params);
                 if let (Some(place), Some(value)) = (self.place(*place), value) {
                     self.codegen.assign(place, value);
@@ -107,25 +108,7 @@ impl<'tcx, CG: oc::BodyCodegen> CodegenCtx<'tcx, CG> {
         use rustc_middle::mir::TerminatorKind;
         match &block.terminator().kind {
             TerminatorKind::Goto { target } => self.codegen.acf().jump(oc::Label(target.index())),
-            TerminatorKind::SwitchInt { discr, targets } => {
-                let lhs = self.op(discr).unwrap();
-                let lhs = self.codegen.mk_tmp(lhs);
-                let (size, signed) = match self.codegen.type_of(lhs.0) {
-                    orco::Type::Integer(size) => (size, true),
-                    orco::Type::Unsigned(size) => (size, false),
-                    ty => panic!("expected integer, got {ty:#?}"),
-                };
-                // for (value, target) in targets.iter() {
-                //     let rhs = if signed {
-                //         self.codegen.iconst(value as _, size)
-                //     } else {
-                //         self.codegen.uconst(value, size)
-                //     };
-                // self.codegen.call(self.codegen.intrinsic(Eq), vec![]);
-                // self.codegen
-                //     .acf()
-                //     .cjump(lhs.clone(), value, true, oc::Label(target.index()));
-                // }
+            TerminatorKind::SwitchInt { targets, .. } => {
                 self.codegen
                     .acf()
                     .jump(oc::Label(targets.otherwise().index()));

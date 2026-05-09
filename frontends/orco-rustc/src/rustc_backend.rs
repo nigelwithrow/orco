@@ -16,7 +16,7 @@ impl rustc_codegen_ssa::traits::CodegenBackend for OrcoCodegenBackend {
     }
 
     fn target_cpu(&self, _sess: &Session) -> String {
-        "gcc".to_owned()
+        "cc".to_owned()
     }
 
     fn codegen_crate(
@@ -27,26 +27,8 @@ impl rustc_codegen_ssa::traits::CodegenBackend for OrcoCodegenBackend {
         tracing::info!("Name: {}", tcx.crate_name(rustc_hir::def_id::LOCAL_CRATE));
         let items = tcx.hir_crate_items(());
         let backend = orco_cgen::Backend::new();
-        {
-            use orco::DeclarationBackend;
-            backend.function(
-                "MulWithOverflow".into(),
-                vec![(None, orco::Type::Error), (None, orco::Type::Error)],
-                Some(orco::Type::Struct {
-                    fields: vec![(None, orco::Type::Error), (None, orco::Type::Error)],
-                }),
-                orco::attrs::FunctionAttributes::default(),
-            );
-            backend.function(
-                "AddWithOverflow".into(),
-                vec![(None, orco::Type::Error), (None, orco::Type::Error)],
-                Some(orco::Type::Struct {
-                    fields: vec![(None, orco::Type::Error), (None, orco::Type::Error)],
-                }),
-                orco::attrs::FunctionAttributes::default(),
-            );
-        }
-        // MulWithOverflow
+        crate::intrinsics::declare(&backend);
+        crate::intrinsics::codegen(&backend);
         crate::declare(tcx, &backend, items);
         crate::codegen(tcx, &backend, items);
         print!("{}", backend);

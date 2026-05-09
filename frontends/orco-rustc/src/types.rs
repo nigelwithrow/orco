@@ -63,19 +63,7 @@ pub fn convert(tcx: TyCtxt, ty: rustc_middle::ty::Ty) -> Option<orco::Type> {
         TyKind::Tuple(v) => orco::Type::Struct {
             fields: v
                 .iter()
-                .enumerate()
-                .filter_map(|(idx, ty)| {
-                    let name = idx.to_string();
-                    let ty = convert(tcx, ty)?;
-                    Some((
-                        if name.chars().next().is_none_or(|c| c.is_ascii_digit()) {
-                            None
-                        } else {
-                            Some(name)
-                        },
-                        ty,
-                    ))
-                })
+                .filter_map(|ty| convert(tcx, ty).map(|ty| (None, ty)))
                 .collect(),
         },
         TyKind::Alias(..) => todo!(),

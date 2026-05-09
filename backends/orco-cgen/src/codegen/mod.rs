@@ -2,6 +2,10 @@ use crate::{Backend, SymbolKind};
 use orco::codegen as oc;
 use std::collections::HashMap;
 
+mod intrinsics;
+mod value;
+use value::ValueInfo;
+
 /// Implementation of [`orco::BodyCodegen`]
 pub struct Codegen<'a, 'b: 'a> {
     /// Backend context that will recieve the symbol once codegen is done
@@ -29,19 +33,6 @@ pub struct Codegen<'a, 'b: 'a> {
 struct VariableInfo {
     name: String,
     ty: orco::Type,
-}
-
-struct ValueInfo {
-    /// Expression for this value, will either be placed whenever
-    /// the value is used or placed in the code whenever the value is flushed.
-    expression: String,
-    ty: orco::Type,
-}
-
-impl ValueInfo {
-    fn new(expression: String, ty: orco::Type) -> Self {
-        Self { expression, ty }
-    }
 }
 
 impl<'a, 'b: 'a> Codegen<'a, 'b> {
@@ -100,65 +91,6 @@ impl<'a, 'b: 'a> Codegen<'a, 'b> {
         self.indent();
         std::fmt::write(&mut self.body, args).unwrap();
         self.body.push('\n');
-    }
-
-    /// Make a value and put it in [`Self::values`]
-    fn mk_value(&mut self, value: ValueInfo) -> oc::Value {
-        let id = oc::Value(self.next_value_index);
-        self.next_value_index += 1;
-        self.values.insert(id.0, value);
-        id
-    }
-
-    /// Use a value, returns it's expression, must be placed in the code to avoid
-    /// missing side effects.
-    fn use_value(&mut self, value: oc::Value) -> ValueInfo {
-        self.values.remove(&value.0).unwrap_or_else(|| {
-            panic!(
-                "value #{} either doesn't exist or was used already",
-                value.0
-            )
-        })
-    }
-
-    /// Convert [`oc::Place`] to a value (C code string + type)
-    fn place(&mut self, place: oc::Place) -> ValueInfo {
-        match place {
-            oc::Place::Variable(variable) => {
-                let variable = &self.variables[variable.0];
-                ValueInfo::new(variable.name.clone(), variable.ty.clone())
-            }
-            oc::Place::Global(name) => {
-                let symbol = self.backend.get_symbol(name);
-                ValueInfo::new(
-                    crate::symname(name),
-                    match symbol.get() {
-                        SymbolKind::Function(signature) => signature.ptr_type(),
-                        _ => panic!("trying to access {name} as a value, but it is {symbol:?}"),
-                    },
-                )
-            }
-            oc::Place::Deref(value) => {
-                let value = self.use_value(value);
-                ValueInfo::new(
-                    format!("(*{})", value.expression),
-                    match self.backend.inline_type_aliases(value.ty, false) {
-                        orco::Type::Ptr(ty, _) => *ty,
-                        ty => panic!("trying to dereference a non-pointer type {ty:#?}"),
-                    },
-                )
-            }
-            oc::Place::Field(place, idx) => {
-                let place = self.place(*place);
-                let mut fields = match self.backend.inline_type_aliases(place.ty.clone(), true) {
-                    orco::Type::Struct { fields } => fields,
-                    ty => panic!("trying to access field #{idx} on a non-struct type {ty:#?}"),
-                };
-                let (name, ty) = fields.swap_remove(idx);
-                let name = name.unwrap_or_else(|| format!("_{idx}"));
-                ValueInfo::new(format!("{}.{name}", place.expression), ty)
-            }
-        }
     }
 }
 
@@ -222,6 +154,10 @@ impl oc::BodyCodegen for Codegen<'_, '_> {
         self.mk_value(ValueInfo::new(value.to_string(), orco::Type::Float(size))) // TODO: Literal sizes
     }
 
+    fn bconst(&mut self, value: bool) -> oc::Value {
+        self.mk_value(ValueInfo::new(value.to_string(), orco::Type::Bool))
+    }
+
     fn read(&mut self, place: oc::Place) -> oc::Value {
         let place = self.place(place);
         self.mk_value(place)
@@ -269,12 +205,16 @@ impl oc::BodyCodegen for Codegen<'_, '_> {
         }
     }
 
-    fn acf(&mut self) -> &mut impl oc::ACFCodegen {
+    fn intrinsics(&mut self) -> impl oc::Intrinsics + '_ {
+        self
+    }
+
+    fn acf(&mut self) -> impl oc::ACFCodegen + '_ {
         self
     }
 }
 
-impl oc::ACFCodegen for Codegen<'_, '_> {
+impl oc::ACFCodegen for &mut Codegen<'_, '_> {
     fn alloc_label(&mut self) -> oc::Label {
         oc::Label(0)
     }
